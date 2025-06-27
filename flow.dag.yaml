@@ -1,0 +1,124 @@
+inputs:
+  chat_history:
+    type: list
+    default:
+    - inputs:
+        chat_input: Hi
+      outputs:
+        chat_output: Hello! How can I assist you today?
+    - inputs:
+        chat_input: What is Azure compute instance?
+      outputs:
+        chat_output: An Azure Machine Learning compute instance is a fully managed
+          cloud-based workstation for data scientists. It provides a
+          pre-configured and managed development environment in the cloud for
+          machine learning. Compute instances can also be used as a compute
+          target for training and inferencing for development and testing
+          purposes. They have a job queue, run jobs securely in a virtual
+          network environment, and can run multiple small jobs in parallel.
+          Additionally, compute instances support single-node multi-GPU
+          distributed training jobs.
+    is_chat_history: true
+  chat_input:
+    type: string
+    default: How can I create one using azureml sdk V2?
+    is_chat_input: true
+outputs:
+  chat_output:
+    type: string
+    reference: ${chat_with_context.output}
+    is_chat_output: true
+nodes:
+- name: modify_query_with_history
+  type: llm
+  source:
+    type: code
+    path: modify_query_with_history.jinja2
+  inputs:
+    deployment_name: ''
+    temperature: 0
+    top_p: 1
+    max_tokens: 1000
+    presence_penalty: 0
+    frequency_penalty: 0
+    chat_input: ${inputs.chat_input}
+    chat_history: ${inputs.chat_history}
+  provider: AzureOpenAI
+  connection: ''
+  api: chat
+  module: promptflow.tools.aoai
+- name: lookup
+  type: python
+  source:
+    type: package
+    tool: promptflow_vectordb.tool.common_index_lookup.search
+  inputs:
+    mlindex_content: ''
+    queries: ${modify_query_with_history.output}
+    query_type: ''
+    top_k: 2
+  use_variants: false
+- name: generate_prompt_context
+  type: python
+  source:
+    type: code
+    path: generate_prompt_context.py
+  inputs:
+    search_result: ${lookup.output}
+- name: Prompt_variants
+  use_variants: true
+- name: chat_with_context
+  type: llm
+  source:
+    type: code
+    path: chat_with_context.jinja2
+  inputs:
+    deployment_name: ''
+    temperature: 0
+    top_p: 1
+    max_tokens: 1000
+    presence_penalty: 0
+    frequency_penalty: 0
+    prompt_text: ${Prompt_variants.output}
+  provider: AzureOpenAI
+  connection: ''
+  api: chat
+  module: promptflow.tools.aoai
+node_variants:
+  Prompt_variants:
+    default_variant_id: variant_0
+    variants:
+      variant_0:
+        node:
+          type: prompt
+          source:
+            type: code
+            path: Prompt_variants.jinja2
+          inputs:
+            contexts: ${generate_prompt_context.output}
+            chat_history: ${inputs.chat_history}
+            chat_input: ${inputs.chat_input}
+      variant_1:
+        node:
+          type: prompt
+          source:
+            type: code
+            path: Prompt_variants__variant_1.jinja2
+          inputs:
+            chat_input: ${inputs.chat_input}
+            contexts: ${generate_prompt_context.output}
+            chat_history: ${inputs.chat_history}
+      variant_2:
+        node:
+          type: prompt
+          source:
+            type: code
+            path: Prompt_variants__variant_2.jinja2
+          inputs:
+            contexts: ${generate_prompt_context.output}
+            chat_history: ${inputs.chat_history}
+            chat_input: ${inputs.chat_input}
+id: bring_your_own_data_chat_qna
+name: Bring Your Own Data Chat QnA
+environment:
+  python_requirements_txt: requirements.txt
