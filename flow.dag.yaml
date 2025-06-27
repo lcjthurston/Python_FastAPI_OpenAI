@@ -9,25 +9,105 @@ inputs:
     - inputs:
         chat_input: What is Azure compute instance?
       outputs:
-        chat_output: An Azure Machine Learning compute instance is a fully managed
-          cloud-based workstation for data scientists. It provides a
-          pre-configured and managed development environment in the cloud for
-          machine learning. Compute instances can also be used as a compute
-          target for training and inferencing for development and testing
-          purposes. They have a job queue, run jobs securely in a virtual
-          network environment, and can run multiple small jobs in parallel.
-          Additionally, compute instances support single-node multi-GPU
-          distributed training jobs.
+        chat_output: An Azure Machine Learning compute instance is a fully managed cloud-based workstation for data scientists. It provides a pre-configured and managed development environment in the cloud for machine learning. Compute instances can also be used as a compute target for training and inferencing for development and testing purposes. They have a job queue, run jobs securely in a virtual network environment, and can run multiple small jobs in parallel. Additionally, compute instances support single-node multi-GPU distributed training jobs.
     is_chat_history: true
   chat_input:
     type: string
     default: How can I create one using azureml sdk V2?
     is_chat_input: true
+  mlindex_content:
+    type: string
+    default: |
+      {
+        "dataset": {
+          "name": "Customers",
+          "description": "A dataset containing customer information including ID, name, email, phone, address, and notes.",
+          "version": "1.0.0",
+          "format": "Excel",
+          "source": "Customers.xlsx",
+          "created": "2025-06-27T12:15:00Z",
+          "row_count": 100
+        },
+        "schema": [
+          {
+            "name": "Customer ID",
+            "type": "integer",
+            "description": "Unique identifier for each customer",
+            "constraints": {
+              "required": true,
+              "unique": true
+            }
+          },
+          {
+            "name": "Full Name",
+            "type": "string",
+            "description": "Full name of the customer",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "Email Address",
+            "type": "string",
+            "description": "Customer's email address",
+            "constraints": {
+              "required": true,
+              "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+            }
+          },
+          {
+            "name": "Phone",
+            "type": "string",
+            "description": "Customer's phone number in various formats",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "Address",
+            "type": "string",
+            "description": "Customer's address",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "Notes",
+            "type": "string",
+            "description": "Additional notes about the customer (e.g., VIP status)",
+            "constraints": {
+              "required": false
+            }
+          }
+        ],
+        "statistics": {
+          "row_count": 100,
+          "missing_values": {
+            "Customer ID": 0,
+            "Full Name": 0,
+            "Email Address": 0,
+            "Phone": 0,
+            "Address": 0,
+            "Notes": 90
+          },
+          "unique_values": {
+            "Customer ID": 100,
+            "Full Name": 100,
+            "Email Address": 100,
+            "Phone": 100,
+            "Address": 100,
+            "Notes": 2
+          }
+        }
+      }
+    is_mlindex_content: true
+
 outputs:
   chat_output:
     type: string
     reference: ${chat_with_context.output}
     is_chat_output: true
+
 nodes:
 - name: modify_query_with_history
   type: llm
@@ -44,20 +124,22 @@ nodes:
     chat_input: ${inputs.chat_input}
     chat_history: ${inputs.chat_history}
   provider: AzureOpenAI
-  connection: ''
+  connection: azure_openai_connection  # Replace with your actual connection name
   api: chat
   module: promptflow.tools.aoai
+
 - name: lookup
   type: python
   source:
     type: package
     tool: promptflow_vectordb.tool.common_index_lookup.search
   inputs:
-    mlindex_content: ''
+    mlindex_content: ${inputs.mlindex_content}
     queries: ${modify_query_with_history.output}
-    query_type: ''
+    query_type: semantic  # Added a default query type
     top_k: 2
   use_variants: false
+
 - name: generate_prompt_context
   type: python
   source:
@@ -65,8 +147,10 @@ nodes:
     path: generate_prompt_context.py
   inputs:
     search_result: ${lookup.output}
+
 - name: Prompt_variants
   use_variants: true
+
 - name: chat_with_context
   type: llm
   source:
@@ -81,9 +165,10 @@ nodes:
     frequency_penalty: 0
     prompt_text: ${Prompt_variants.output}
   provider: AzureOpenAI
-  connection: ''
+  connection: azure_openai_connection  # Replace with your actual connection name
   api: chat
   module: promptflow.tools.aoai
+
 node_variants:
   Prompt_variants:
     default_variant_id: variant_0
@@ -118,6 +203,7 @@ node_variants:
             contexts: ${generate_prompt_context.output}
             chat_history: ${inputs.chat_history}
             chat_input: ${inputs.chat_input}
+
 id: bring_your_own_data_chat_qna
 name: Bring Your Own Data Chat QnA
 environment:
