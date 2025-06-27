@@ -55,3 +55,9 @@ echo "You can access the OpenAPI schema at: $PUBLIC_URL/openapi.json"
 echo "Remember to update your FastAPI app's servers URL in main.py to this public URL and redeploy."
 
 az webapp deploy \  --resource-group "My_new_resource_group" \  --name "hopefulwebapp" \  --src-path "." \  --startup-command "uvicorn main:app --host 0.0.0.0 --port $PORT"
+
+
+mkdir msdocs-django-postgresql-sample-app
+cd msdocs-django-postgresql-sample-app
+azd init --template msdocs-django-postgresql-sample-app
+azd up
