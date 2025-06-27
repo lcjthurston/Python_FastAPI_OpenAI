@@ -1,0 +1,87 @@
+inputs:
+  question:
+    type: string
+    default: How to use SDK V2?
+outputs:
+  output:
+    type: string
+    reference: ${answer_the_question_with_context.output}
+nodes:
+- name: lookup
+  type: python
+  source:
+    type: package
+    tool: promptflow_vectordb.tool.common_index_lookup.search
+  inputs:
+    mlindex_content: ''
+    queries: ${inputs.question}
+    query_type: ''
+    top_k: 2
+  use_variants: false
+- name: generate_prompt_context
+  type: python
+  source:
+    type: code
+    path: generate_prompt_context.py
+  inputs:
+    search_result: ${lookup.output}
+- name: Prompt_variants
+  use_variants: true
+- name: answer_the_question_with_context
+  type: llm
+  source:
+    type: code
+    path: answer_the_question_with_context.jinja2
+  inputs:
+    deployment_name: ''
+    suffix: ''
+    max_tokens: '1000'
+    temperature: '0'
+    top_p: '1.0'
+    logprobs: ''
+    echo: 'False'
+    stop: ''
+    presence_penalty: '0'
+    frequency_penalty: '0'
+    best_of: '1'
+    logit_bias: ''
+    prompt_text: ${Prompt_variants.output}
+  provider: AzureOpenAI
+  connection: ''
+  api: chat
+  module: promptflow.tools.aoai
+node_variants:
+  Prompt_variants:
+    default_variant_id: variant_0
+    variants:
+      variant_0:
+        node:
+          type: prompt
+          source:
+            type: code
+            path: Prompt_variants.jinja2
+          inputs:
+            contexts: ${generate_prompt_context.output}
+            question: ${inputs.question}
+      variant_1:
+        node:
+          type: prompt
+          source:
+            type: code
+            path: Prompt_variants__variant_1.jinja2
+          inputs:
+            contexts: ${generate_prompt_context.output}
+            question: ${inputs.question}
+      variant_2:
+        node:
+          type: prompt
+          source:
+            type: code
+            path: Prompt_variants__variant_2.jinja2
+          inputs:
+            contexts: ${generate_prompt_context.output}
+            question: ${inputs.question}
+id: bring_your_own_data_qna
+name: Bring Your Own Data QnA
+environment:
+    python_requirements_txt: requirements.txt
